@@ -1,0 +1,118 @@
+clc; clear;
+addpath ../../   % <-- adjust this path to where optimTraj.m lives
+
+%% --- Parameters ---
+p.g = 4;  % gravity
+
+%% --- Dynamics and cost ---
+problem.func.dynamics = @(t,x,u) dynamics(t,x,u,p);
+problem.func.pathObj  = @(t,x,u) u.^2;   % minimize control effort
+
+%% --- Bounds ---
+problem.bounds.initialTime.low = 0;
+problem.bounds.initialTime.upp = 0;
+problem.bounds.finalTime.low   = 1.0;
+problem.bounds.finalTime.upp   = 8.0;
+
+problem.bounds.state.low  = [-2; -3];
+problem.bounds.state.upp  = [ 2;  3];
+problem.bounds.initialState.low = [0; 0];
+problem.bounds.initialState.upp = [0; 0];
+problem.bounds.finalState.low   = [2; -0.02];
+problem.bounds.finalState.upp   = [2;  0.02];
+
+problem.bounds.control.low = -2;
+problem.bounds.control.upp =  2;
+
+%% --- Initial guess (reverse then forward) ---
+problem.guess.time   = [0, 2.0, 5.0];
+problem.guess.state  = [0, -1.0, 2.0;    % position q
+                        0,  0.0, 0.0];   % velocity dq
+problem.guess.control = [-1.5, 1.5, 0.0];
+
+%% --- Solver settings ---
+problem.options.method = 'hermiteSimpson';
+problem.options.defaultAccuracy = 'high';
+problem.options.meshMaxIterations = 5;
+problem.options.useScaling = true;
+
+%% --- Solve ---
+soln = optimTraj(problem);
+
+%% --- Extract interpolated solution ---
+tFine = linspace(soln.grid.time(1), soln.grid.time(end), 600);
+xFine = soln.interp.state(tFine);
+uFine = soln.interp.control(tFine);
+
+q  = xFine(1,:);
+dq = xFine(2,:);
+u  = uFine;
+
+%% --- Plots ---
+figure(1); clf;
+subplot(3,1,1)
+plot(tFine,q,'LineWidth',1.5);
+ylabel('q (position)'); title('Mountain Car Optimal Control');
+subplot(3,1,2)
+plot(tFine,dq,'LineWidth',1.5);
+ylabel('dq (velocity)');
+subplot(3,1,3)
+plot(tFine,u,'LineWidth',1.5);
+ylabel('u (control)'); xlabel('t');
+
+%% --- Animation ---
+figure(2); clf; axis equal; hold on; grid on;
+xlabel('x'); ylabel('Height');
+title('Mountain Car Animation');
+set(gca,'XLim',[-4.5,5],'YLim',[-1.5,1.5]);
+
+% Terrain
+xTerrain = linspace(-4.5,5,400);
+yTerrain = -cos(pi/2 * min(max(xTerrain,-2),2));  % flat outside [-2,2]
+plot(xTerrain, yTerrain, 'k', 'LineWidth', 1.5);
+
+% Car marker
+yCar = -cos(pi/2 * min(max(q(1),-2),2));
+carMarker = plot(q(1), yCar, 'ro', 'MarkerFaceColor','r', 'MarkerSize',10);
+trail = plot(q(1), yCar, 'b.');
+
+for k = 1:length(tFine)
+    qk = q(k);
+    yCar = -cos(pi/2 * min(max(qk,-2),2));
+
+    set(carMarker,'XData',qk,'YData',yCar);
+    set(trail,'XData',q(1:k),'YData',-cos(pi/2 * min(max(q(1:k),-2),2)));
+
+    title(sprintf('t = %.2f s, dq = %.2f, u = %.2f', tFine(k), dq(k), u(k)));
+    drawnow;
+    pause(0.02);
+end
+
+%% ---Simulation---
+% Simulate with ODE45 using the optimal control
+x0 = soln.interp.state(0);      % initial state from solution
+tSpan = [soln.grid.time(1), soln.grid.time(end)];
+
+dynOpt = @(t,x) mountainCarDynamics(t, x, soln.interp.control(t), p);
+
+opts = odeset('RelTol',1e-6,'AbsTol',1e-8);
+[tSim, xSim] = ode45(dynOpt, tSpan, x0, opts);
+
+% Extract results
+qSim  = xSim(:,1);
+dqSim = xSim(:,2);
+uSim  = arrayfun(@(ti) soln.interp.control(ti), tSim);
+
+% Plot
+figure; clf;
+subplot(3,1,1)
+plot(tSim,qSim,'LineWidth',1.5);
+ylabel('q'); title('ODE45 Simulation with Optimal Control');
+
+subplot(3,1,2)
+plot(tSim,dqSim,'LineWidth',1.5);
+ylabel('dq');
+
+subplot(3,1,3)
+plot(tSim,uSim,'LineWidth',1.5);
+ylabel('u'); xlabel('t');
