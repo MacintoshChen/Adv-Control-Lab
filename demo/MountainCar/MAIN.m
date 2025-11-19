@@ -1,6 +1,33 @@
 clc; clear;
 addpath ../../   % <-- adjust this path to where optimTraj.m lives
 
+function [ref_state, ref_idx] = advance_ref(current_state, ref_path, ref_idx, tol, lookahead)
+    N = size(ref_path,1);
+    ref_idx = min(max(ref_idx,1), N);
+
+    dx = ref_path(ref_idx,1) - current_state(1);
+    dy = ref_path(ref_idx,2) - current_state(2);
+    d  = hypot(dx, dy);
+
+    if (d < tol) && (ref_idx < N)
+        ref_idx = ref_idx + 1;
+    else
+        i = ref_idx;
+        while i < N
+            dx = ref_path(i,1) - current_state(1);
+            dy = ref_path(i,2) - current_state(2);
+            if hypot(dx,dy) >= lookahead
+                break;
+            end
+            i = i + 1;
+        end
+        ref_idx = i;
+    end
+
+    ref_state = ref_path(ref_idx, :)';
+end
+
+
 %% --- Parameters ---
 p.g = 4;  % gravity
 
@@ -116,3 +143,51 @@ ylabel('dq');
 subplot(3,1,3)
 plot(tSim,uSim,'LineWidth',1.5);
 ylabel('u'); xlabel('t');
+
+
+%% ---LQR Controller---
+% --- parameters ---
+dt = 0.1;
+xGrid = soln.grid.state;
+tGrid = soln.grid.time;
+current_state = xGrid(:,1);
+goal = xGrid(:,end);
+ref_idx = 1;
+tol = 0.75;
+lookahead = 3.0;
+
+% --- logs for plotting ---
+traj = current_state;
+u_log = 0;      % first control
+t_log = 0;      % simulation time
+
+t = 0;
+while norm(current_state - goal) >= 0.2 && ref_idx < size(xGrid,2)
+    [ref_state, ref_idx] = advance_ref(current_state, xGrid.', ref_idx, tol, lookahead);
+
+    u = LQR(current_state, ref_state, p.g);
+
+    dx = mountainCarDynamics(0, current_state, u, p);
+    current_state = current_state + dt * dx;
+
+    t = t + dt;
+    traj(:,end+1) = current_state;
+    u_log(end+1) = u;
+    t_log(end+1) = t;
+end
+
+% --- plotting results ---
+figure;
+subplot(3,1,1);
+plot(t_log, traj(1,:),'LineWidth',1.5);
+ylabel('q (position)');
+title('Closed-loop LQR Simulation');
+
+subplot(3,1,2);
+plot(t_log, traj(2,:),'LineWidth',1.5);
+ylabel('dq (velocity)');
+
+subplot(3,1,3);
+plot(t_log, u_log,'LineWidth',1.5);
+ylabel('u (control)');
+xlabel('Time (s)');

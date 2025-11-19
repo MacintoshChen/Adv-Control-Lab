@@ -8,6 +8,32 @@
 clc; clear;
 addpath ../../
 
+
+function [ref_state, ref_idx] = advance_ref(current_state, ref_path, ref_idx, tol, lookahead)
+% ref_path: state_dim × N
+% current_state: state_dim × 1
+
+    N = size(ref_path, 2);
+    ref_idx = min(max(ref_idx,1), N);
+
+    d = norm(current_state - ref_path(:, ref_idx));
+
+    if (d < tol) && (ref_idx < N)
+        ref_idx = ref_idx + 1;
+    else
+        i = ref_idx;
+        while i < N
+            if norm(ref_path(:, i) - current_state) >= lookahead
+                break;
+            end
+            i = i + 1;
+        end
+        ref_idx = i;
+    end
+
+    ref_state = ref_path(:, ref_idx);
+end
+
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%
 %                  Parameters for the dynamics function                   %
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%
@@ -23,7 +49,7 @@ x0 = [0;0];   %[q1;q2];  %initial angles   %Stable equilibrium
 xF = [pi;pi];  %[q1;q2];  %final angles    %Inverted balance
 dx0 = [0;0];   %[dq1;dq2];  %initial angle rates
 dxF = [0;0];  %[dq1;dq2];  %final angle rates
-maxTorque = 20;  % Max torque at the elbow  (GPOPS goes crazy without this)
+maxTorque = 10;  % Max torque at the elbow  (GPOPS goes crazy without this)
 
 %  * The optimal trajectory is not actually constrained by the maximum
 %  torque. That being said, GPOPS goes numerically unstable if the torque
@@ -34,7 +60,7 @@ maxTorque = 20;  % Max torque at the elbow  (GPOPS goes crazy without this)
 %                       Set up function handles                           %
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~%
 
-problem.func.dynamics = @(t,x,u)( acrobotDynamics(x,u,dyn) );
+problem.func.dynamics = @(t,x,u)( pendubotDynamics(x,u,dyn) );
 
 problem.func.pathObj = @(t,x,u)( u.^2 );  %Simple torque-squared
 
@@ -167,10 +193,12 @@ figure(1337); clf; plotAcrobot(t,z,u,dyn);
 % Draw a stop-action animation:
 figure(1338); clf; drawStopActionAcrobot(soln(end),dyn);
 
+
+%% ODE45 simulation
 x0 = soln(end).interp.state(0);
 tSpan = [soln(end).grid.time(1), soln(end).grid.time(end)];
 
-dynOpt = @(t,x) acrobotDynamics(x, soln(end).interp.control(t), dyn);
+dynOpt = @(t,x) pendubotDynamics(x, soln(end).interp.control(t), dyn);
 
 opts = odeset('RelTol',1e-6,'AbsTol',1e-8);
 [tSim, xSim] = ode45(dynOpt, tSpan, x0, opts);
@@ -204,6 +232,8 @@ plot(tSim,uSim,'LineWidth',1.5);
 ylabel('u');
 xlabel('t');
 
+
+%% LQR Controller
 t = 0;
 dt = 0.001;
 current_state = soln(end).grid.state(:,1);
@@ -212,8 +242,6 @@ u_log = [];
 t_log = [];
 
 while t <= soln(end).grid.time(end)
-
-    % reference (time-based)
     ref_state = soln(end).interp.state(t);
     ref_u     = soln(end).interp.control(t);
 
@@ -222,10 +250,10 @@ while t <= soln(end).grid.time(end)
     u = max(min(u, maxTorque), -maxTorque);   % clamp
 
     % integrate (RK4)
-    k1 = acrobotDynamics(current_state, u, dyn);
-    k2 = acrobotDynamics(current_state + 0.5*dt*k1, u, dyn);
-    k3 = acrobotDynamics(current_state + 0.5*dt*k2, u, dyn);
-    k4 = acrobotDynamics(current_state + dt*k3, u, dyn);
+    k1 = pendubotDynamics(current_state, u, dyn);
+    k2 = pendubotDynamics(current_state + 0.5*dt*k1, u, dyn);
+    k3 = pendubotDynamics(current_state + 0.5*dt*k2, u, dyn);
+    k4 = pendubotDynamics(current_state + dt*k3, u, dyn);
     current_state = current_state + dt*(k1+2*k2+2*k3+k4)/6;
 
     % log
@@ -236,22 +264,9 @@ while t <= soln(end).grid.time(end)
 
 end
 
-q1  = traj(1,2:end);
-q2  = traj(2,2:end);
-
-%% Plot
 figure;
-
-subplot(3,1,1)
-plot(t_log,q1,'LineWidth',1.5);
-ylabel('q_1');
-title('Pendubot ODE45 simulation with optimal control');
-
-subplot(3,1,2)
-plot(t_log,q2,'LineWidth',1.5);
-ylabel('q_2');
-
 subplot(3,1,3);
 plot(t_log, u_log,'LineWidth',1.5);
 ylabel('u (control)');
 xlabel('Time (s)');
+
