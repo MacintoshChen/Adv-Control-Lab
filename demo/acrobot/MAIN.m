@@ -205,20 +205,31 @@ ylabel('u');
 xlabel('t');
 
 t = 0;
-dt = 0.001;
+dt = 0.01;
 current_state = soln(end).grid.state(:,1);
 traj = current_state;
 u_log = [];
 t_log = [];
+delta_t = soln(end).grid.time(end)-soln(end).grid.time(end-1);
+xGrid = soln(end).grid.state;
+uGrid = soln(end).grid.control;
+
+K_prev = zeros(1, 4);
+
 
 while t <= soln(end).grid.time(end)
+    ref_state = interp1(tGrid, xGrid.', t).';    % --> column vector
+    ref_u     = interp1(tGrid, uGrid.', t).';
 
-    % reference (time-based)
-    ref_state = soln(end).interp.state(t);
-    ref_u     = soln(end).interp.control(t);
 
     % control
-    u = LQR(current_state, ref_state, ref_u, dyn);
+    [K, ok] = LQR(ref_state, ref_u, dyn, K_prev);
+    if ok
+        K_prev = K;
+    else
+        K = K_prev;
+    end
+    u = ref_u - K*(current_state-ref_state);
     u = max(min(u, maxTorque), -maxTorque);   % clamp
 
     % integrate (RK4)
