@@ -4,6 +4,11 @@ clear; clc;
 m1 = 1; m2 = 1;
 l1 = 0.5; l2 = 0.5;
 g  = 9.81;
+dyn.m1 = 1;  % elbow mass
+dyn.m2 = 1; % wrist mass
+dyn.g = 9.81;  % gravity
+dyn.l1 = 0.5;   % length of first link
+dyn.l2 = 0.5;   % length of second link
 
 %% Equilibrium definitions
 x_eq1 = [pi; 0; 0; 0];       % fully upright
@@ -69,7 +74,11 @@ for k = 1:100       % simulate several steps
 
     u = -K_aug * (Xk - Xref);
 
-    x = Ad*x + Bd*u;
+    k1 = acrobotDynamics(x, u, dyn);
+    k2 = acrobotDynamics(x + 0.5*dt*k1, u, dyn);
+    k3 = acrobotDynamics(x + 0.5*dt*k2, u, dyn);
+    k4 = acrobotDynamics(x + dt*k3, u, dyn);
+    x = x + dt*(k1+2*k2+2*k3+k4)/6;
 
     traj(:,end+1) = x;
     uLog(end+1) = u;
@@ -92,9 +101,11 @@ ylabel('q2');
 
 subplot(5,1,3)
 plot(t, traj(3,:), 'LineWidth',2); hold on;
+ylabel('dq1');
 
 subplot(5,1,4)
 plot(t, traj(4,:), 'LineWidth',2); hold on;
+ylabel('dq2');
 
 subplot(5,1,5)
 plot(t, uLog,'LineWidth',2);

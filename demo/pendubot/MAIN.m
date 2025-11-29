@@ -245,8 +245,9 @@ xGrid = soln(end).grid.state;
 uGrid = soln(end).grid.control;
 
 K_prev = zeros(1, 4);
-
-
+ref_state_ts = timeseries(xGrid', tGrid);
+ref_u_ts     = timeseries(uGrid', tGrid);
+k_log = [];
 while t <= soln(end).grid.time(end)
     ref_state = interp1(tGrid, xGrid.', t).';    % --> column vector
     ref_u     = interp1(tGrid, uGrid.', t).';
@@ -261,6 +262,7 @@ while t <= soln(end).grid.time(end)
     end
     u = ref_u - K*(current_state-ref_state);
     u = max(min(u, maxTorque), -maxTorque);   % clamp
+    k_log(:, end+1) = K;
 
     % integrate (RK4)
     k1 = pendubotDynamics(current_state, u, dyn);
@@ -276,7 +278,7 @@ while t <= soln(end).grid.time(end)
     t_log(end+1) = t;
 
 end
-
+k_log_ref = timeseries(k_log', t_log');
 figure;
 subplot(3,1,3);
 plot(t_log, u_log,'LineWidth',1.5);

@@ -216,7 +216,6 @@ uGrid = soln(end).grid.control;
 
 K_prev = zeros(1, 4);
 
-
 while t <= soln(end).grid.time(end)
     ref_state = interp1(tGrid, xGrid.', t).';    % --> column vector
     ref_u     = interp1(tGrid, uGrid.', t).';

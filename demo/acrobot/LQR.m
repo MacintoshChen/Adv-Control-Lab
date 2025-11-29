@@ -9,10 +9,12 @@ function [K, ok] = LQR(ref_state, ref_u, dyn, K_prev)
         ok = false;
         return;
     end
-    Q = diag([5, 5, 1, 1]);
+    Q = diag([20, 20, 1, 1]);
     R = 1;
     K = lqr(A,B,Q,R);
-    if max(abs(K)) > 100 || max(abs(K ./ (K_prev + 1e-9))) > 5
-        ok = false;
+    if ~all(K_prev == 0)
+        if max(abs(K)) > 100 || max(abs(K ./ (K_prev + 1e-9))) > 5
+            ok = false;
+        end
     end
 end

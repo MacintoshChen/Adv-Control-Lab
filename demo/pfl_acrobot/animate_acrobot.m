@@ -37,7 +37,7 @@ function animate_acrobot(t, x, params)
         drawnow;
         if k > 1
             dt = t(k) - t(k-1);
-            pause(dt);   % real-time animation
+            pause(dt*0.01);   % real-time animation
         end
     end
 end
