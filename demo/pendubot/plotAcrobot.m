@@ -38,6 +38,4 @@ xlabel('t')
 ylabel('u')
 title('torque between links')
 
-
-
 end

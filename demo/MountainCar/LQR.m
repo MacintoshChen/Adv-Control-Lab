@@ -1,4 +1,5 @@
 function u = LQR(current_state, ref_state, g)
+% linearize around current reference point
     [A,B] = mc_linearize(ref_state(1), g);
     Q = diag([1, 1]);
     R = 1;

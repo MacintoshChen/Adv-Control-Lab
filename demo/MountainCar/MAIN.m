@@ -163,10 +163,11 @@ t_log = 0;      % simulation time
 
 t = 0;
 while norm(current_state - goal) >= 0.2 && ref_idx < size(xGrid,2)
+    % Pick the closest reference point ahead
     [ref_state, ref_idx] = advance_ref(current_state, xGrid.', ref_idx, tol, lookahead);
 
     u = LQR(current_state, ref_state, p.g);
-
+    % Euler simulation for next step
     dx = mountainCarDynamics(0, current_state, u, p);
     current_state = current_state + dt * dx;
 

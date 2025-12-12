@@ -249,12 +249,14 @@ ref_state_ts = timeseries(xGrid', tGrid);
 ref_u_ts     = timeseries(uGrid', tGrid);
 k_log = [];
 while t <= soln(end).grid.time(end)
+    % Pick Reference State and Input at time t, use interpolation
     ref_state = interp1(tGrid, xGrid.', t).';    % --> column vector
     ref_u     = interp1(tGrid, uGrid.', t).';
 
 
     % control
     [K, ok] = LQR(ref_state, ref_u, dyn, K_prev);
+    % If K not valid, use previous one
     if ok
         K_prev = K;
     else
@@ -264,7 +266,7 @@ while t <= soln(end).grid.time(end)
     u = max(min(u, maxTorque), -maxTorque);   % clamp
     k_log(:, end+1) = K;
 
-    % integrate (RK4)
+    % integrate (RK4) for better accuracy
     k1 = pendubotDynamics(current_state, u, dyn);
     k2 = pendubotDynamics(current_state + 0.5*dt*k1, u, dyn);
     k3 = pendubotDynamics(current_state + 0.5*dt*k2, u, dyn);

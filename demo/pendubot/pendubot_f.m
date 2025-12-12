@@ -12,4 +12,6 @@ k2 = pendubotDynamics(x + 0.5*dt*k1, u, dyn);
 k3 = pendubotDynamics(x + 0.5*dt*k2, u, dyn);
 k4 = pendubotDynamics(x + dt*k3, u, dyn);
 x = x + dt*(k1+2*k2+2*k3+k4)/6;
+x(1) = wrapToPi(x(1));
+x(2) = wrapToPi(x(2));
 end
